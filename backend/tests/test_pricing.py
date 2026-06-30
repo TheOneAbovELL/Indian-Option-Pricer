@@ -1,7 +1,3 @@
-"""
-Tests for India Option Pricing Engine backend
-Run: pytest tests/ -v
-"""
 import pytest
 import math
 from app.core.pricing_engine import (

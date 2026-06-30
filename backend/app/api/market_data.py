@@ -1,7 +1,3 @@
-"""
-Market Data API — Indian market reference data
-"""
-
 from fastapi import APIRouter, HTTPException
 from app.services.market_data_service import (
     get_all_underlyings, get_underlying, get_rbi_rates,

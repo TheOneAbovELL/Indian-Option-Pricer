@@ -1,8 +1,3 @@
-"""
-Pydantic models for India Option Pricing Engine
-All prices in INR (₹), aligned with NSE/BSE contract specs
-"""
-
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Literal
 from enum import Enum

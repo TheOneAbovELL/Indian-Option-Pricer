@@ -1,8 +1,3 @@
-"""
-Core pricing engine for Indian options market
-Implements BSM, Monte Carlo, Binomial Tree, and all Greeks
-"""
-
 import math
 import numpy as np
 from scipy.stats import norm

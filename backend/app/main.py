@@ -1,8 +1,3 @@
-"""
-India Option Pricing Engine - FastAPI Backend
-NSE/BSE Options: Nifty 50, Bank Nifty, Sensex, Indian Equities
-"""
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import pricing, market_data, greeks, implied_vol
