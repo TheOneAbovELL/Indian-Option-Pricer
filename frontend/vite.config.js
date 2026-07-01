@@ -11,5 +11,17 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor':   ['react', 'react-dom'],
+          'chart-vendor':   ['recharts'],
+          'icon-vendor':    ['lucide-react'],
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600,
   }
 })

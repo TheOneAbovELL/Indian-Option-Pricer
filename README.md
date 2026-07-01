@@ -1,164 +1,244 @@
-# 🇮🇳 India Option Pricing Engine v2.0
+<div align="center">
 
-A full-stack option pricing platform built specifically for **NSE and BSE Indian markets** — pricing options in **INR (₹)** with Indian market conventions, RBI rates, NSE lot sizes, and CE/PE notation.
+# 🇮🇳 India Option Pricing Engine
+
+### Professional-grade option pricing for NSE & BSE — built natively for the Indian derivatives market
+
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-5.3-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Tests](https://img.shields.io/badge/Tests-16%2F16%20passing-2EA44F?style=flat-square&logo=pytest&logoColor=white)](#-testing)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](#-license)
+
+**Currency: INR (₹) · Exchanges: NSE & BSE · Notation: CE/PE**
+
+[Quick Start](#-quick-start) · [Architecture](#-architecture) · [API Reference](#-api-reference) · [Troubleshooting](#-troubleshooting)
+
+</div>
 
 ---
 
-## What's Inside
+## 📖 Overview
 
-| Feature | Details |
+The **India Option Pricing Engine** is a full-stack derivatives pricing platform purpose-built for Indian markets. Unlike generic option calculators, every default, unit, and convention here matches what you'd see on an actual NSE option chain — lot sizes, RBI repo rate as risk-free proxy, CE/PE labeling, and India-specific volatility skew.
+
+It prices options three independent ways and shows you all three side by side, so you can sanity-check results against each other instead of trusting a single black-box number.
+
+| Capability | Detail |
 |---|---|
-| **Pricing Models** | Black-Scholes-Merton (analytical) · Monte Carlo (antithetic variates) · Binomial Tree CRR |
-| **Option Styles** | European (NSE Index: Nifty, BankNifty) · American (NSE Stocks) · Asian (arithmetic & geometric) |
-| **Greeks** | Delta, Gamma, Theta, Vega, Rho + Vanna, Volga, Charm, Speed, Color — all in ₹ per lot |
-| **Implied Vol** | Newton-Raphson IV solver + model vol smile/surface |
-| **Market Data** | 16 NSE/BSE underlyings · lot sizes · RBI rates · expiry cycles · SEBI margin notes |
-| **Currency** | All outputs in **INR (₹)** with per-unit and per-lot breakdowns |
-| **Frontend** | React + Recharts — payoff chart, model comparison table, vol surface chart |
-| **Backend** | FastAPI + NumPy/SciPy — REST API with OpenAPI docs |
-| **Tests** | 16 unit tests covering BSM, Monte Carlo, Binomial, Greeks, Asian |
+| 🧮 **Pricing models** | Black-Scholes-Merton (analytical) · Monte Carlo (antithetic variance reduction) · Binomial Tree (Cox-Ross-Rubinstein) |
+| 📐 **Option styles** | European (NSE index options) · American (NSE stock options, early exercise) · Asian (arithmetic & geometric averaging) |
+| 🔢 **Greeks** | 1st order — Delta, Gamma, Theta, Vega, Rho · 2nd order — Vanna, Volga, Charm, Speed, Color — all converted to ₹/lot |
+| 📊 **Implied volatility** | Newton-Raphson solver from market price · model volatility smile/surface generator |
+| 🏛️ **Market data** | 16 pre-loaded NSE/BSE underlyings, lot sizes, RBI repo rate, expiry cycles, SEBI margin notes, circuit breaker levels |
+| 💰 **Currency handling** | Every price shown per-unit and per-lot in INR (₹), with lakh/crore-aware formatting |
+| ✅ **Test coverage** | 16 unit tests — put-call parity, Monte Carlo convergence, binomial-BSM agreement, Greek sign checks |
 
 ---
 
-## Project Structure
+## 🏗️ Architecture
+
+```mermaid
+flowchart TB
+    subgraph Client["CLIENT — React 18 + Vite · localhost:5173"]
+        direction LR
+        A1["Option Pricer<br/><sub>BSM · MC · Binomial</sub>"]
+        A2["Greeks Dashboard<br/><sub>Δ Γ Θ V ρ + 2nd order</sub>"]
+        A3["Implied Vol<br/><sub>IV solver · vol smile</sub>"]
+        A4["Market Data<br/><sub>underlyings · RBI rates</sub>"]
+    end
+
+    subgraph API["API — FastAPI · localhost:8000 · proxied via /api"]
+        direction LR
+        B1["/api/pricing<br/><sub>european · american · asian</sub>"]
+        B2["/api/greeks"]
+        B3["/api/vol<br/><sub>implied-vol · surface</sub>"]
+        B4["/api/market-data"]
+    end
+
+    subgraph Core["CORE — NumPy + SciPy"]
+        direction LR
+        C1["Black-Scholes<br/>Merton"]
+        C2["Monte Carlo<br/><sub>antithetic</sub>"]
+        C3["Binomial Tree<br/><sub>CRR</sub>"]
+        C4["Newton-Raphson<br/><sub>IV solver</sub>"]
+    end
+
+    subgraph Data["DATA — in-memory NSE/BSE reference"]
+        D1["16 underlyings · lot sizes · RBI repo · expiry cycles · SEBI margin"]
+    end
+
+    Client -- "HTTPS / JSON REST" --> API
+    API -- "Pydantic schemas" --> Core
+    Core -- "reference lookups" --> Data
+```
+
+> 📎 A static rendering of this diagram is also available at [`docs/architecture.svg`](docs/architecture.svg) if your viewer doesn't render Mermaid.
+
+### Request flow example
+
+1. User picks **NIFTY**, sets strike/spot/expiry in the **Option Pricer** tab
+2. Frontend `POST`s to `/api/pricing/european` with the payload
+3. FastAPI validates input via Pydantic (`OptionInput` schema)
+4. `pricing_engine.py` computes BSM, Monte Carlo (50k antithetic paths), and Binomial CRR in parallel
+5. Response includes per-unit price, per-lot price (₹), confidence intervals, and Greeks-ready `d1`/`d2`
+6. Frontend renders a model comparison table + payoff-at-expiry chart (Recharts)
+
+---
+
+## 📁 Project Structure
 
 ```
 india-option-pricer/
-├── backend/
+│
+├── backend/                           FastAPI application
 │   ├── app/
-│   │   ├── main.py                    # FastAPI app + CORS
-│   │   ├── api/
-│   │   │   ├── pricing.py             # /api/pricing — European, American, Asian
-│   │   │   ├── greeks.py              # /api/greeks — full 1st & 2nd order Greeks
-│   │   │   ├── implied_vol.py         # /api/vol — IV solver + vol surface
-│   │   │   └── market_data.py         # /api/market-data — underlyings, RBI rates
+│   │   ├── main.py                    App entrypoint, CORS, router registration
+│   │   ├── api/                       Route handlers (thin — validation + response shaping)
+│   │   │   ├── pricing.py             POST /api/pricing/{european,american,asian}
+│   │   │   ├── greeks.py              POST /api/greeks
+│   │   │   ├── implied_vol.py         POST /api/vol/{implied-vol,vol-surface}
+│   │   │   └── market_data.py         GET  /api/market-data/*
 │   │   ├── core/
-│   │   │   └── pricing_engine.py      # BSM, Monte Carlo, Binomial CRR, Greeks
+│   │   │   └── pricing_engine.py      BSM · Monte Carlo · Binomial CRR · Greeks (pure functions)
 │   │   ├── models/
-│   │   │   └── schemas.py             # Pydantic request/response models
+│   │   │   └── schemas.py             Pydantic request/response contracts
 │   │   └── services/
-│   │       ├── market_data_service.py # NSE/BSE contract specs, RBI rates
-│   │       └── implied_vol.py         # Newton-Raphson IV + vol surface
+│   │       ├── market_data_service.py NSE/BSE contract specs, RBI rate constants
+│   │       └── implied_vol.py         Newton-Raphson solver, vol surface generator
 │   ├── tests/
-│   │   └── test_pricing.py            # 16 unit tests
-│   ├── requirements.txt
-│   ├── run.py
+│   │   └── test_pricing.py            16 tests — parity, convergence, Greek sanity checks
+│   ├── requirements.txt               Pinned, Windows/Python 3.13–safe (see note below)
+│   ├── run.py                         uvicorn launcher
 │   └── .env.example
 │
-├── frontend/
+├── frontend/                          React 18 + Vite SPA
 │   ├── src/
-│   │   ├── App.jsx                    # Root — tab navigation
-│   │   ├── main.jsx                   # React entry point
+│   │   ├── App.jsx                    Tab navigation shell
+│   │   ├── main.jsx                   React DOM entry
 │   │   ├── components/
-│   │   │   ├── Header.jsx             # NSE-blue header
-│   │   │   ├── OptionForm.jsx         # Full input form with presets
-│   │   │   ├── PricingResult.jsx      # Results + payoff chart
-│   │   │   └── ui.jsx                 # Shared UI primitives
+│   │   │   ├── Header.jsx             NSE-blue branded header
+│   │   │   ├── OptionForm.jsx         Input form with underlying presets
+│   │   │   ├── PricingResult.jsx      Results table + payoff chart (Recharts)
+│   │   │   └── ui.jsx                 Shared primitives (Card, StatBox, Badge…)
 │   │   ├── pages/
-│   │   │   ├── PricerPage.jsx         # Option Pricer tab
-│   │   │   ├── GreeksPage.jsx         # Greeks tab
-│   │   │   ├── ImpliedVolPage.jsx     # IV solver + vol surface
-│   │   │   └── MarketDataPage.jsx     # Market data tab
+│   │   │   ├── PricerPage.jsx
+│   │   │   ├── GreeksPage.jsx
+│   │   │   ├── ImpliedVolPage.jsx
+│   │   │   └── MarketDataPage.jsx
 │   │   └── utils/
-│   │       ├── api.js                 # All API calls
-│   │       └── format.js              # ₹ formatting utilities
+│   │       ├── api.js                 Typed fetch wrapper for all endpoints
+│   │       └── format.js              ₹ / lakh / crore formatting helpers
 │   ├── index.html
-│   ├── vite.config.js
+│   ├── vite.config.js                 Dev server + /api proxy to :8000
 │   └── package.json
 │
-└── README.md
+├── docs/
+│   └── architecture.svg               Static architecture diagram
+│
+├── start.sh                           One-command launcher (macOS/Linux)
+├── start.bat                          One-command launcher (Windows)
+├── .gitignore
+└── README.md                          You are here
 ```
 
 ---
 
-## Prerequisites
+## ✅ Prerequisites
 
-| Tool | Version | Install |
-|---|---|---|
-| Python | 3.10+ | [python.org](https://python.org) |
-| Node.js | 18+ | [nodejs.org](https://nodejs.org) |
-| pip | latest | comes with Python |
-| npm | 9+ | comes with Node.js |
+| Tool | Minimum version | Check with | Get it |
+|---|---|---|---|
+| Python | 3.10 (3.13 supported) | `python --version` | [python.org](https://python.org) |
+| Node.js | 18 | `node --version` | [nodejs.org](https://nodejs.org) |
+| pip | latest | `pip --version` | ships with Python |
+| npm | 9+ | `npm --version` | ships with Node.js |
 
-Check what you have:
-```bash
-python --version     # need 3.10+
-node --version       # need 18+
-pip --version
-npm --version
-```
+> ⚠️ **Python 3.13 + Windows users:** make sure you're on the `requirements.txt` shipped with this version of the repo (NumPy ≥ 2.0, SciPy ≥ 1.14). Older pins (`scipy==1.13.0`) try to compile from source on Windows and fail with a Fortran-compiler error — see [Troubleshooting](#-troubleshooting).
 
 ---
 
-## Setup — Step by Step
+## 🚀 Quick Start
 
-### 1. Clone / Extract the project
+### Option A — One command (macOS/Linux)
 
 ```bash
-# If from zip:
-unzip india-option-pricer.zip
+git clone <repo-url> india-option-pricer
 cd india-option-pricer
-
-# If from git:
-git clone <repo-url>
-cd india-option-pricer
+bash start.sh
 ```
 
----
+### Option A — One command (Windows)
 
-### 2. Backend Setup
+```powershell
+git clone <repo-url> india-option-pricer
+cd india-option-pricer
+.\start.bat
+```
+
+> Note the leading `.\` — PowerShell doesn't run scripts from the current folder by default.
+
+Both scripts create the virtual environment, install dependencies, and launch backend + frontend together.
+
+### Option B — Manual setup (recommended if Option A has issues)
+
+**Terminal 1 — Backend**
 
 ```bash
-cd backend
+cd india-option-pricer/backend
+python -m venv venv
 ```
 
-**Create and activate a virtual environment (recommended):**
+Activate the environment (pick your shell):
 
 ```bash
 # macOS / Linux
-python -m venv venv
 source venv/bin/activate
 
-# Windows (Command Prompt)
-python -m venv venv
+# Windows — Command Prompt
 venv\Scripts\activate.bat
 
-# Windows (PowerShell)
-python -m venv venv
+# Windows — PowerShell
 venv\Scripts\Activate.ps1
 ```
 
-You should see `(venv)` in your terminal prompt.
-
-**Install Python dependencies:**
+> If PowerShell blocks the activation script with an execution-policy error, run this once:
+> `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 
 ```bash
 pip install -r requirements.txt
-```
-
-This installs: `fastapi`, `uvicorn`, `pydantic`, `numpy`, `scipy`, `httpx`, `python-dotenv`.
-
-**Copy the environment file:**
-
-```bash
-cp .env.example .env
-```
-
-**Start the backend server:**
-
-```bash
 python run.py
 ```
 
 You should see:
+
 ```
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process
-INFO:     Started server process
+INFO:     Uvicorn running on http://0.0.0.0:8000
 INFO:     Application startup complete.
 ```
 
-**Verify it works:**
+Leave this terminal running.
+
+**Terminal 2 — Frontend** (open a new terminal window)
+
+```bash
+cd india-option-pricer/frontend
+npm install
+npm run dev
+```
+
+You should see:
+
+```
+  VITE v5.x.x  ready in 400ms
+  ➜  Local:   http://localhost:5173/
+```
+
+**Open the app:** [http://localhost:5173](http://localhost:5173)
+**Open the API docs:** [http://localhost:8000/api/docs](http://localhost:8000/api/docs)
+
+### Verifying the backend independently
+
 ```bash
 curl http://localhost:8000/health
 # → {"status":"ok"}
@@ -167,92 +247,61 @@ curl http://localhost:8000/
 # → {"service":"India Option Pricing Engine","version":"2.0.0",...}
 ```
 
-**Interactive API docs** (Swagger UI):
-```
-http://localhost:8000/api/docs
-```
-
 ---
 
-### 3. Frontend Setup
-
-Open a **new terminal** (keep the backend running):
-
-```bash
-cd frontend      # from the project root
-npm install
-```
-
-This installs: `react`, `react-dom`, `recharts`, `lucide-react`, `vite`.
-
-**Start the frontend dev server:**
-
-```bash
-npm run dev
-```
-
-You should see:
-```
-  VITE v5.x.x  ready in 400ms
-
-  ➜  Local:   http://localhost:5173/
-  ➜  Network: use --host to expose
-```
-
-**Open your browser:** [http://localhost:5173](http://localhost:5173)
-
----
-
-### 4. Run Tests
+## 🧪 Testing
 
 ```bash
 cd backend
-source venv/bin/activate    # if not already active
-
+source venv/bin/activate          # Windows: venv\Scripts\Activate.ps1
 pip install pytest
 python -m pytest tests/ -v
 ```
 
-Expected output:
-```
-============================= test session starts ==============================
-collected 16 items
+<details>
+<summary><strong>Expected output (16/16 passing)</strong></summary>
 
-tests/test_pricing.py::TestBSM::test_atm_call_put_parity           PASSED
-tests/test_pricing.py::TestBSM::test_deep_itm_call_approaches_intrinsic PASSED
-tests/test_pricing.py::TestBSM::test_nifty_atm_example             PASSED
-tests/test_pricing.py::TestBSM::test_zero_vol_boundary             PASSED
-tests/test_pricing.py::TestMonteCarlo::test_convergence_to_bsm     PASSED
+```
+tests/test_pricing.py::TestBSM::test_atm_call_put_parity                  PASSED
+tests/test_pricing.py::TestBSM::test_deep_itm_call_approaches_intrinsic   PASSED
+tests/test_pricing.py::TestBSM::test_nifty_atm_example                    PASSED
+tests/test_pricing.py::TestBSM::test_zero_vol_boundary                    PASSED
+tests/test_pricing.py::TestMonteCarlo::test_convergence_to_bsm            PASSED
 tests/test_pricing.py::TestMonteCarlo::test_std_error_decreases_with_sims PASSED
-tests/test_pricing.py::TestBinomial::test_european_matches_bsm     PASSED
-tests/test_pricing.py::TestBinomial::test_american_put_ge_european  PASSED
-tests/test_pricing.py::TestGreeks::test_call_delta_range            PASSED
-tests/test_pricing.py::TestGreeks::test_put_delta_range             PASSED
-tests/test_pricing.py::TestGreeks::test_delta_put_call_relationship PASSED
-tests/test_pricing.py::TestGreeks::test_gamma_positive              PASSED
-tests/test_pricing.py::TestGreeks::test_vega_positive               PASSED
-tests/test_pricing.py::TestGreeks::test_theta_negative_for_long     PASSED
-tests/test_pricing.py::TestAsian::test_asian_call_less_than_european PASSED
-tests/test_pricing.py::TestAsian::test_geometric_less_than_arithmetic PASSED
+tests/test_pricing.py::TestBinomial::test_european_matches_bsm            PASSED
+tests/test_pricing.py::TestBinomial::test_american_put_ge_european        PASSED
+tests/test_pricing.py::TestGreeks::test_call_delta_range                  PASSED
+tests/test_pricing.py::TestGreeks::test_put_delta_range                   PASSED
+tests/test_pricing.py::TestGreeks::test_delta_put_call_relationship       PASSED
+tests/test_pricing.py::TestGreeks::test_gamma_positive                    PASSED
+tests/test_pricing.py::TestGreeks::test_vega_positive                     PASSED
+tests/test_pricing.py::TestGreeks::test_theta_negative_for_long           PASSED
+tests/test_pricing.py::TestAsian::test_asian_call_less_than_european      PASSED
+tests/test_pricing.py::TestAsian::test_geometric_less_than_arithmetic     PASSED
 
 ============================== 16 passed in 3.0s ==============================
 ```
 
+</details>
+
+What's actually being verified: put-call parity holds exactly under BSM; Monte Carlo converges to the BSM price within 2 standard errors as simulation count grows; the Binomial tree agrees with BSM for European exercise; American puts price at or above their European counterpart (early-exercise premium); call delta stays in (0,1) and put delta in (-1,0); theta is negative for long positions; Asian options price below equivalent European options (averaging reduces effective volatility).
+
 ---
 
-## API Reference
+## 📡 API Reference
 
-Base URL: `http://localhost:8000`
+Base URL: `http://localhost:8000` · Interactive docs: `http://localhost:8000/api/docs`
 
-### Pricing
+### Pricing — `POST /api/pricing/*`
 
-| Method | Endpoint | Description |
+| Endpoint | Use case | Models returned |
 |---|---|---|
-| `POST` | `/api/pricing/european` | BSM + Monte Carlo + Binomial (NSE Index options) |
-| `POST` | `/api/pricing/american` | Binomial CRR with early exercise (NSE Stock options) |
-| `POST` | `/api/pricing/asian` | Monte Carlo Asian — arithmetic or geometric |
+| `/api/pricing/european` | NSE index options (Nifty, Bank Nifty, Sensex) | BSM + Monte Carlo + Binomial |
+| `/api/pricing/american` | NSE stock options (early exercise since Oct 2019) | Binomial CRR (primary) + BSM/MC as European lower bound |
+| `/api/pricing/asian` | Path-dependent average-price options | Monte Carlo (arithmetic or geometric averaging) |
 
-**Example — Price Nifty ATM CE (European):**
+<details>
+<summary><strong>Example — price a Nifty ATM call (European)</strong></summary>
 
 ```bash
 curl -X POST http://localhost:8000/api/pricing/european \
@@ -272,19 +321,20 @@ curl -X POST http://localhost:8000/api/pricing/european \
   }'
 ```
 
-**Response includes:**
-```json
+```jsonc
 {
-  "bsm":          { "call_price": 368.93, "call_price_inr": 18446.50, ... },
-  "monte_carlo":  { "call_price": 367.12, "call_std_error": 1.58, ... },
-  "binomial":     { "call_price": 368.53, "num_steps": 200, ... }
+  "bsm":         { "call_price": 368.93, "call_price_inr": 18446.50, "d1": 0.234, "d2": 0.193 },
+  "monte_carlo": { "call_price": 367.12, "call_std_error": 1.58, "num_simulations": 50000 },
+  "binomial":    { "call_price": 368.53, "num_steps": 200 }
 }
 ```
 
-### Greeks
+</details>
+
+### Greeks — `POST /api/greeks`
 
 ```bash
-curl -X POST http://localhost:8000/api/greeks/ \
+curl -X POST http://localhost:8000/api/greeks \
   -H "Content-Type: application/json" \
   -d '{
     "spot_price": 19500, "strike_price": 19500,
@@ -295,7 +345,9 @@ curl -X POST http://localhost:8000/api/greeks/ \
   }'
 ```
 
-### Implied Volatility
+Returns delta, gamma, theta, vega, rho, plus vanna, volga, charm, speed, color — each scaled to ₹/lot using your `lot_size`.
+
+### Implied volatility — `POST /api/vol/implied-vol`
 
 ```bash
 curl -X POST http://localhost:8000/api/vol/implied-vol \
@@ -309,29 +361,22 @@ curl -X POST http://localhost:8000/api/vol/implied-vol \
   }'
 ```
 
-### Market Data
+### Market data — `GET /api/market-data/*`
 
 ```bash
-# All underlyings
-curl http://localhost:8000/api/market-data/underlyings
-
-# Specific symbol
-curl http://localhost:8000/api/market-data/underlyings/BANKNIFTY
-
-# RBI rates
-curl http://localhost:8000/api/market-data/rbi-rates
-
-# NSE market structure
-curl http://localhost:8000/api/market-data/nse-info
+curl http://localhost:8000/api/market-data/underlyings           # all 16 underlyings
+curl http://localhost:8000/api/market-data/underlyings/BANKNIFTY # one symbol
+curl http://localhost:8000/api/market-data/rbi-rates             # repo rate reference
+curl http://localhost:8000/api/market-data/nse-info              # circuit breakers, settlement rules
 ```
 
 ---
 
-## Indian Market Details
+## 🇮🇳 Indian Market Reference
 
-### Supported Underlyings
+### Pre-loaded underlyings
 
-| Symbol | Exchange | Lot Size | Style |
+| Symbol | Exchange | Lot size | Style |
 |---|---|---|---|
 | NIFTY | NSE | 50 | European |
 | BANKNIFTY | NSE | 15 | European |
@@ -350,102 +395,167 @@ curl http://localhost:8000/api/market-data/nse-info
 | HINDUNILVR | NSE | 300 | American |
 | ADANIENT | NSE | 300 | American |
 
-> ⚠ NSE revises lot sizes periodically. Always verify at [nseindia.com](https://www.nseindia.com) before trading.
+> ⚠️ NSE revises lot sizes periodically as share prices change. Always verify current contract specs at [nseindia.com](https://www.nseindia.com/products-services/equity-derivatives-fno-contract) before trading on these numbers.
 
-### Risk-Free Rate
+### Conventions this engine follows
 
-Use the **RBI Repo Rate** as the risk-free rate:
-- Current rate: **6.50%** → enter `0.065`
-- Verify at [rbi.org.in](https://rbi.org.in)
-
-### CE / PE Notation
-
-NSE uses **CE** (Call European/Call) and **PE** (Put European/Put) — not "C" and "P" as in Western markets.
-
-### Expiry Cycles
-
-- **Nifty**: Monthly (last Thursday) + Weekly (every Thursday)
-- **Bank Nifty**: Monthly (last Thursday) + Weekly (every Wednesday)
-- **Stock options**: Monthly only (last Thursday), **American style** since October 2019
+- **Risk-free rate** → RBI repo rate (currently ~6.5%, enter as `0.065`). Verify live at [rbi.org.in](https://rbi.org.in).
+- **CE / PE notation** → NSE labels calls "CE" and puts "PE", not "C"/"P" as in US markets.
+- **Index options are European**, settled in cash at 15:30 IST on expiry day.
+- **Stock options are American** (early exercise allowed) and physically settled, a rule change effective October 2019.
+- **Expiry cycles**: Nifty — monthly (last Thursday) + weekly (every Thursday); Bank Nifty — monthly (last Thursday) + weekly (every Wednesday); stock options — monthly only.
 
 ---
 
-## Troubleshooting
+## 🛠️ Troubleshooting
 
-**Backend won't start — `ModuleNotFoundError`**
+<details>
+<summary><strong>SciPy fails to install on Windows — "Unknown compiler(s): ifort, gfortran…"</strong></summary>
+
+This happens when `requirements.txt` pins `scipy==1.13.0`, which has no pre-built wheel for newer Python versions (3.13) on Windows, so pip tries to compile it from source and needs a Fortran compiler you don't have.
+
+**Fix:** make sure your `requirements.txt` uses these unpinned-floor versions instead, which ship as ready-made wheels:
+
+```
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+numpy>=2.0.0
+scipy>=1.14.0
+python-dotenv==1.0.1
+httpx==0.27.0
+```
+
+Then re-run `pip install -r requirements.txt` — no compiler needed.
+
+</details>
+
+<details>
+<summary><strong>Backend won't start — ModuleNotFoundError</strong></summary>
+
+Your virtual environment probably isn't active, or dependencies didn't finish installing.
+
 ```bash
-# Make sure venv is active and packages installed
-source venv/bin/activate
+source venv/bin/activate     # Windows: venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python run.py
 ```
 
-**Frontend shows "Failed to fetch" / API errors**
+</details>
+
+<details>
+<summary><strong>Frontend shows "Failed to fetch" / network errors</strong></summary>
+
+Confirm the backend is actually running and reachable:
+
 ```bash
-# Make sure backend is running on port 8000
 curl http://localhost:8000/health
-# Vite proxies /api → localhost:8000 automatically
 ```
 
-**`python` command not found on Windows**
-```bash
-# Try python3 or py instead
+Vite's dev server proxies `/api/*` requests to `localhost:8000` automatically (see `vite.config.js`) — if the backend isn't up, every API call in the UI will fail.
+
+</details>
+
+<details>
+<summary><strong>PowerShell errors: "&& is not a valid statement separator" or "command not recognized"</strong></summary>
+
+PowerShell doesn't support chaining commands with `&&` the way bash does — run each command on its own line. And PowerShell won't execute a script from the current folder unless you prefix it with `.\`:
+
+```powershell
+.\start.bat        # not just start.bat
+```
+
+</details>
+
+<details>
+<summary><strong>venv\Scripts\Activate.ps1 is blocked by execution policy</strong></summary>
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+venv\Scripts\Activate.ps1
+```
+
+</details>
+
+<details>
+<summary><strong>python command not found on Windows</strong></summary>
+
+Try the Windows launcher instead:
+
+```powershell
 py -m venv venv
 py run.py
 ```
 
-**Port 8000 or 5173 already in use**
-```bash
-# Change backend port in run.py:
-uvicorn.run("app.main:app", host="0.0.0.0", port=8001, ...)
+</details>
 
-# Change frontend port in vite.config.js:
+<details>
+<summary><strong>Port 8000 or 5173 already in use</strong></summary>
+
+Change the backend port in `backend/run.py`:
+
+```python
+uvicorn.run("app.main:app", host="0.0.0.0", port=8001, reload=True)
+```
+
+And the frontend proxy in `frontend/vite.config.js`:
+
+```js
 server: { port: 5174, proxy: { '/api': 'http://localhost:8001' } }
 ```
 
-**`venv\Scripts\Activate.ps1` blocked on Windows PowerShell**
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-# Then try again
-venv\Scripts\Activate.ps1
-```
+</details>
 
 ---
 
-## Production Deployment
+## 🚢 Production Deployment
 
-**Backend (uvicorn + gunicorn):**
+**Backend — uvicorn behind gunicorn**
+
 ```bash
 pip install gunicorn
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
-**Frontend (build static files):**
+**Frontend — static build**
+
 ```bash
 cd frontend
-npm run build          # outputs to frontend/dist/
-# Serve dist/ with nginx or any static host
+npm run build       # outputs to frontend/dist/
+# serve dist/ with nginx, Vercel, Netlify, or any static host
 ```
 
-**Update CORS in `backend/app/main.py`:**
+**Lock down CORS** in `backend/app/main.py` before going live:
+
 ```python
-allow_origins=["https://your-domain.com"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://your-production-domain.com"],
+    ...
+)
 ```
 
 ---
 
-## Disclaimer
+## ⚠️ Disclaimer
 
-This tool is for **educational and research purposes only**. It is not financial advice and does not constitute a recommendation to buy or sell any security or derivative instrument.
+This project is for **educational and research purposes only** and does not constitute financial advice or a recommendation to buy, sell, or hold any security or derivative instrument.
 
-- Option pricing models assume certain market conditions that may not hold in reality.
-- Lot sizes, expiry dates, and contract specifications change — always verify on NSE/BSE before trading.
-- The risk-free rate used (RBI Repo) is a reference and may differ from actual funding costs.
-- Past model accuracy does not guarantee future accuracy.
+- Pricing models rely on simplifying assumptions (constant volatility, frictionless markets, lognormal returns) that don't always hold in real markets.
+- Lot sizes, expiry dates, and contract specifications shown here are reference values and change periodically — always verify current specs on NSE/BSE before placing any trade.
+- The RBI repo rate is used as a risk-free proxy; it may not match your actual cost of capital.
+- Past pricing accuracy does not guarantee future accuracy.
 
 Consult a SEBI-registered investment advisor before making investment decisions.
 
 ---
 
-## License
+## 📄 License
 
 MIT License — free to use, modify, and distribute with attribution.
+
+<div align="center">
+
+Made for the Indian derivatives market · NSE · BSE · ₹
+
+</div>
