@@ -1,3 +1,7 @@
+"""
+Greeks API endpoints — full first & second order Greeks
+"""
+
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import OptionInput, GreeksResponse, GreeksResult
 from app.core.pricing_engine import compute_greeks, black_scholes_merton
@@ -12,9 +16,9 @@ def get_greeks(inp: OptionInput):
     Compute analytical BSM Greeks for CE/PE options.
     
     Returns:
-    - 1st order: Delta, Gamma, Theta (₹/day), Vega (₹/1%), Rho (₹/1%)
-    - 2nd order: Vanna, Volga, Charm, Speed, Color
-    - Derived: Delta in ₹, Theta ₹/week, breakeven prices, P(ITM)
+    - **1st order**: Delta, Gamma, Theta (₹/day), Vega (₹/1%), Rho (₹/1%)
+    - **2nd order**: Vanna, Volga, Charm, Speed, Color
+    - **Derived**: Delta in ₹, Theta ₹/week, breakeven prices, P(ITM)
     
     Theta and Vega are scaled to ₹ per lot for direct P&L interpretation.
     """

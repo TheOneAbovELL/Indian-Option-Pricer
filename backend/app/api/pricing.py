@@ -1,3 +1,8 @@
+"""
+Pricing API endpoints
+Supports BSM, Monte Carlo, Binomial Tree, and Asian options
+"""
+
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import (
     OptionInput, AsianOptionInput,

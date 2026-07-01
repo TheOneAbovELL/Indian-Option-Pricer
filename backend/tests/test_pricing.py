@@ -1,3 +1,7 @@
+"""
+Tests for India Option Pricing Engine backend
+Run: pytest tests/ -v
+"""
 import pytest
 import math
 from app.core.pricing_engine import (
@@ -116,3 +120,52 @@ class TestAsian:
         geom  = monte_carlo_asian(S, K, T, r, q, v, averaging="geometric",  num_sims=50_000)
         # Geometric mean <= arithmetic mean, so geometric asian should be slightly cheaper
         assert geom.call_price <= arith.call_price * 1.1
+
+
+class TestStrategy:
+    """Tests for multi-leg strategy pricing logic"""
+
+    def test_atm_straddle_delta_symmetry(self):
+        """ATM straddle: |call_delta| ≈ |put_delta| (both close to 0.5)"""
+        g = compute_greeks(19500, 19500, 0.0833, 0.065, 0.0, 0.14, lot_size=50)
+        # For ATM option, |delta| should be close to 0.5 for both legs
+        assert abs(g.call_delta) > 0.45, "ATM CE delta should be near 0.5"
+        assert abs(g.put_delta)  > 0.40, "ATM PE delta should be near 0.5"
+        # And their absolute values should be similar (symmetric ATM)
+        assert abs(abs(g.call_delta) - abs(g.put_delta)) < 0.15
+
+    def test_bull_call_spread_max_profit_capped(self):
+        """Bull call spread: max profit = (K2-K1) - net_debit > 0 and < strike width"""
+        K1, K2 = 19500, 20000
+        bsm1 = black_scholes_merton(19500, K1, 0.0833, 0.065, 0.0, 0.14)
+        bsm2 = black_scholes_merton(19500, K2, 0.0833, 0.065, 0.0, 0.14)
+        net_debit  = bsm1.call_price - bsm2.call_price   # pay for lower, receive for higher
+        max_profit = (K2 - K1) - net_debit
+        assert net_debit > 0,           "Spread debit should be positive"
+        assert max_profit > 0,          "Max profit should be positive"
+        assert max_profit < (K2 - K1),  "Max profit must be less than strike width"
+
+    def test_iron_condor_is_net_credit(self):
+        """Iron condor: sell inner strikes, buy outer wings → net credit > 0"""
+        S = 19500
+        ce_sold = black_scholes_merton(S, 19750, 0.0833, 0.065, 0.0, 0.14)
+        ce_buy  = black_scholes_merton(S, 20000, 0.0833, 0.065, 0.0, 0.14)
+        pe_sold = black_scholes_merton(S, 19250, 0.0833, 0.065, 0.0, 0.14)
+        pe_buy  = black_scholes_merton(S, 19000, 0.0833, 0.065, 0.0, 0.14)
+        # Net credit = received premiums - paid premiums
+        net_credit = (ce_sold.call_price - ce_buy.call_price +
+                      pe_sold.put_price  - pe_buy.put_price)
+        assert net_credit > 0, f"Iron condor net credit {net_credit:.2f} should be > 0"
+        # Max loss = strike width - net credit (should be positive)
+        wing_width = 250   # 19750-19500 = 250
+        max_loss = wing_width - net_credit
+        assert max_loss > 0, "Iron condor max loss should exceed net credit"
+
+    def test_synthetic_forward_put_call_parity(self):
+        """Buy CE + sell PE at same strike = forward price (put-call parity via legs)"""
+        S, K, T, r = 19500, 19500, 0.0833, 0.065
+        bsm = black_scholes_merton(S, K, T, r, 0.0, 0.14)
+        synthetic_forward = bsm.call_price - bsm.put_price
+        actual_forward    = S - K * math.exp(-r * T)
+        assert abs(synthetic_forward - actual_forward) < 0.01, \
+            f"Synthetic forward {synthetic_forward:.4f} != actual {actual_forward:.4f}"
