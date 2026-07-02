@@ -5,7 +5,6 @@ Implements BSM, Monte Carlo, Binomial Tree, and all Greeks
 
 import math
 import numpy as np
-from scipy.stats import norm
 from typing import Tuple
 from dataclasses import dataclass
 
@@ -13,10 +12,10 @@ from dataclasses import dataclass
 # ── Mathematical Utilities ────────────────────────────────────────────────────
 
 def norm_cdf(x: float) -> float:
-    return norm.cdf(x)
+    return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
 
 def norm_pdf(x: float) -> float:
-    return norm.pdf(x)
+    return math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
 
 def bsm_d1_d2(S: float, K: float, T: float, r: float, q: float, v: float) -> Tuple[float, float]:
     """Compute d1 and d2 for BSM formula"""

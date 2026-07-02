@@ -4,8 +4,10 @@ Uses Newton-Raphson iteration to back out IV from market price
 """
 
 import math
-from scipy.stats import norm
 from app.core.pricing_engine import black_scholes_merton, bsm_d1_d2
+
+def _norm_pdf(x: float) -> float:
+    return math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
 
 
 def implied_volatility(
@@ -45,7 +47,7 @@ def implied_volatility(
 
         # Vega for Newton step
         d1, _ = bsm_d1_d2(S, K, T, r, q, sigma)
-        vega = S * math.exp(-q * T) * norm.pdf(d1) * math.sqrt(T)
+        vega = S * math.exp(-q * T) * _norm_pdf(d1) * math.sqrt(T)
         if abs(vega) < 1e-10:
             break
 
