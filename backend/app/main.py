@@ -27,6 +27,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+import traceback
+
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "path": request.url.path,
+            "message": f"Failed at {request.url.path}"
+        }
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal Server Error",
+            "error_message": str(exc),
+            "traceback": traceback.format_exc(),
+            "path": request.url.path
+        }
+    )
+
 app.include_router(pricing.router,     prefix="/api/pricing",     tags=["Pricing"])
 app.include_router(greeks.router,      prefix="/api/greeks",      tags=["Greeks"])
 app.include_router(market_data.router, prefix="/api/market-data", tags=["Market Data"])
